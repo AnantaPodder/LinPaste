@@ -9,6 +9,33 @@ copy — **text and images** — and pops up a searchable history when you press
 **Super + V**. Pick an item and it's pasted straight into wherever you were
 typing (and left on your clipboard, so you can `Ctrl + V` it again).
 
+## Features
+
+- **Text & image history** — every copy is remembered, including screenshots and
+  copied images (stored as files, shown as thumbnails).
+- **Searchable popup** — `Super + V` opens a GTK4 / libadwaita window with live
+  search; just start typing to filter.
+- **Keyboard-first** — navigate with `↑` / `↓`, paste with `Enter`, pin with
+  `Ctrl + P`, delete with `Delete`, close with `Esc`. No mouse required.
+- **Auto-paste** — picking an entry copies it *and* pastes it straight into the
+  window you were in (synthesized `Ctrl + V`); disable to copy-only.
+- **Pinning** — keep frequently-used entries at the top; pinned items are never
+  trimmed away.
+- **De-duplication** — re-copying something just bumps it back to the top instead
+  of cluttering the list.
+- **Automatic trimming** — history is capped (default 500 unpinned entries) so it
+  never grows unbounded.
+- **Password-manager privacy** — content flagged sensitive
+  (`x-kde-passwordManagerHint`) is skipped and never stored.
+- **Clear & delete** — remove a single entry, or wipe all history (pinned-aware)
+  from the popup's trash button or the CLI.
+- **CLI** — `list`, `clear`, `show`, `status`, `setup` for scripting and setup.
+- **Local & boring storage** — plain SQLite + image files under XDG data dirs;
+  easy to inspect, back up, or delete.
+
+See [ROADMAP.md](ROADMAP.md) for what's planned (snippets, encryption, content-type
+filters, non-GNOME desktops, opt-in sync, and more).
+
 ## How it works
 
 ```
@@ -99,7 +126,8 @@ Ubuntu/GNOME on Wayland, Python ≥ 3.10. System packages (installed by
 
 ## Not yet supported
 
-Arbitrary files, encryption-at-rest. See the project plan for the roadmap.
+Arbitrary files, encryption-at-rest, snippets, and non-GNOME desktops — all
+planned. See [ROADMAP.md](ROADMAP.md) for the full plan and priorities.
 
 ## License
 
