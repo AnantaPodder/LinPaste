@@ -23,6 +23,38 @@ def copy(text: str) -> None:
     )
 
 
+def paste_into_active() -> bool:
+    """Ask the LinPaste GNOME Shell extension to synthesize Ctrl+V.
+
+    Input injection is impossible from this sandboxed process on Wayland, so we
+    delegate to the capture extension (which runs inside gnome-shell and exports
+    a ``Paste`` method). Call this *after* the popup window has closed, so focus
+    has returned to the target window. Returns False if the call can't be made
+    (extension not running, not a GNOME session, …) — the copy still stands.
+    """
+    import gi
+
+    gi.require_version("Gio", "2.0")
+    from gi.repository import Gio, GLib
+
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        bus.call_sync(
+            "org.gnome.Shell",
+            "/io/github/anantapodder/LinPaste",
+            "io.github.anantapodder.LinPaste",
+            "Paste",
+            None,
+            None,
+            Gio.DBusCallFlags.NONE,
+            1000,
+            None,
+        )
+        return True
+    except GLib.Error:
+        return False
+
+
 def list_types() -> list[str]:
     """Return the mime types currently offered by the clipboard (best-effort)."""
     try:

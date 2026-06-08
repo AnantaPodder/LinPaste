@@ -6,7 +6,8 @@ experience Windows has, but for Linux.
 Linux gives you only a single clipboard slot: copy something new and the previous
 item is gone. LinPaste runs quietly in the background, remembers everything you
 copy, and pops up a searchable history when you press **Super + V**. Pick an
-item, it's back on your clipboard, and you paste with `Ctrl + V` as usual.
+item and it's pasted straight into wherever you were typing (and left on your
+clipboard, so you can `Ctrl + V` it again).
 
 ## How it works
 
@@ -70,7 +71,7 @@ Don't have the `.deb` yet? Build one from this repo:
 | Open popup | `Super + V` |
 | Filter | just start typing |
 | Move selection | `↑` / `↓` |
-| Copy selected & close | `Enter` |
+| Copy, close & paste into the previous window | `Enter` |
 | Pin / unpin | `Ctrl + P` |
 | Delete entry | `Delete` |
 | Close | `Esc` |
@@ -93,8 +94,7 @@ Ubuntu/GNOME on Wayland, Python ≥ 3.10. System packages (installed by
 
 ## Not yet supported
 
-Images & files, auto-paste injection, encryption-at-rest. See the project plan
-for the roadmap.
+Images & files, encryption-at-rest. See the project plan for the roadmap.
 
 ## License
 

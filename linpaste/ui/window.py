@@ -5,7 +5,8 @@ first, then most-recently-used. Keyboard-first, Win+V style:
 
   - type to filter
   - Up/Down to move through results (works while focus is in the search box)
-  - Enter copies the selected entry to the clipboard and closes
+  - Enter copies the selected entry, closes, and pastes it into the window
+    that had focus (set LINPASTE_AUTO_PASTE=0 to only copy)
   - Delete removes the selected entry
   - Ctrl+P toggles a pin on the selected entry
   - Esc closes
@@ -151,7 +152,11 @@ class LinPasteWindow(Adw.ApplicationWindow):
             return
         clipboard.copy(entry.content)
         db.touch(entry.id)
+        # Close first so the compositor hands focus back to the previous window,
+        # then ask the shell extension to paste into it (Win+V style).
         self.close()
+        if config.AUTO_PASTE:
+            clipboard.paste_into_active()
 
     def _move_selection(self, delta: int) -> None:
         row = self.listbox.get_selected_row()

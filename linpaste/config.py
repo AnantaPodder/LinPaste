@@ -15,6 +15,10 @@ MAX_HISTORY = int(os.environ.get("LINPASTE_MAX_HISTORY", "500"))
 # Number of entries shown in the popup at once.
 SHOW_LIMIT = int(os.environ.get("LINPASTE_SHOW_LIMIT", "200"))
 
+# After selecting an entry, also paste it into the focused window (synthesized
+# Ctrl+V via the capture extension). Set LINPASTE_AUTO_PASTE=0 to only copy.
+AUTO_PASTE = os.environ.get("LINPASTE_AUTO_PASTE", "1") != "0"
+
 
 def _xdg_data_home() -> Path:
     return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
