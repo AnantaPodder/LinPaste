@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "linpaste"
+version = "0.1.0"
+description = "Clipboard history manager for Ubuntu (Wayland/GNOME) — a Win+V for Linux"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# Runtime deps (wl-clipboard, PyGObject/GTK4/libadwaita) are system packages
+# installed via apt — see install.sh — not PyPI wheels, so they're not listed here.
+dependencies = []
+
+[project.scripts]
+linpaste = "linpaste.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["linpaste*"]
