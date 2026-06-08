@@ -5,9 +5,9 @@ experience Windows has, but for Linux.
 
 Linux gives you only a single clipboard slot: copy something new and the previous
 item is gone. LinPaste runs quietly in the background, remembers everything you
-copy, and pops up a searchable history when you press **Super + V**. Pick an
-item and it's pasted straight into wherever you were typing (and left on your
-clipboard, so you can `Ctrl + V` it again).
+copy — **text and images** — and pops up a searchable history when you press
+**Super + V**. Pick an item and it's pasted straight into wherever you were
+typing (and left on your clipboard, so you can `Ctrl + V` it again).
 
 ## How it works
 
@@ -40,7 +40,7 @@ GNOME Shell extension  ──►  linpaste store  ──►  SQLite history.db
 ### Option A — `.deb` package (recommended for a fresh device)
 
 ```bash
-sudo apt install ./linpaste_0.1.0_all.deb
+sudo apt install ./linpaste_0.2.0_all.deb
 ```
 
 `apt` pulls in every dependency (`wl-clipboard`, GTK4, libadwaita, GNOME Shell).
@@ -99,7 +99,7 @@ Ubuntu/GNOME on Wayland, Python ≥ 3.10. System packages (installed by
 
 ## Not yet supported
 
-Images & files, encryption-at-rest. See the project plan for the roadmap.
+Arbitrary files, encryption-at-rest. See the project plan for the roadmap.
 
 ## License
 
