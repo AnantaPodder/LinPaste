@@ -10,6 +10,10 @@ first, then most-recently-used. Keyboard-first, Win+V style:
   - Delete removes the selected entry
   - Ctrl+P toggles a pin on the selected entry
   - Esc closes
+
+Entries may be text or images; image entries show a thumbnail and copy the
+image back to the clipboard on Enter. The trash button in the header clears all
+history (pinned included).
 """
 
 import datetime
@@ -49,6 +53,13 @@ class LinPasteWindow(Adw.ApplicationWindow):
         header = Adw.HeaderBar(show_end_title_buttons=False)
         title = Adw.WindowTitle(title="LinPaste", subtitle="Clipboard history")
         header.set_title_widget(title)
+
+        clear_all = Gtk.Button(icon_name="user-trash-symbolic")
+        clear_all.set_tooltip_text("Clear all clipboard history")
+        clear_all.add_css_class("flat")
+        clear_all.connect("clicked", self._on_clear_all)
+        header.pack_end(clear_all)
+
         root.append(header)
 
         self.search = Gtk.SearchEntry(placeholder_text="Search clipboard…")
@@ -79,7 +90,11 @@ class LinPasteWindow(Adw.ApplicationWindow):
         )
 
         # --- key handling -------------------------------------------------
+        # CAPTURE phase: the search box is always focused, so without this the
+        # GtkText inside it would swallow Delete/Up/Down before they reached us.
+        # Handled keys are consumed here; printable keys fall through to typing.
         keys = Gtk.EventControllerKey()
+        keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         keys.connect("key-pressed", self._on_key)
         self.add_controller(keys)
 
@@ -125,13 +140,22 @@ class LinPasteWindow(Adw.ApplicationWindow):
             pin.add_css_class("accent")
             box.append(pin)
 
-        text = Gtk.Label(xalign=0, hexpand=True)
-        preview = entry.content.strip().splitlines()[0] if entry.content.strip() else ""
-        if len(preview) > 70:
-            preview = preview[:67] + "…"
-        text.set_text(preview or "(whitespace)")
-        text.set_ellipsize(3)  # PANGO_ELLIPSIZE_END
-        box.append(text)
+        if entry.kind == "image":
+            thumb = Gtk.Picture.new_for_filename(entry.content)
+            thumb.set_content_fit(Gtk.ContentFit.CONTAIN)
+            thumb.set_can_shrink(True)
+            thumb.set_size_request(160, 64)
+            thumb.set_halign(Gtk.Align.START)
+            thumb.set_hexpand(True)
+            box.append(thumb)
+        else:
+            text = Gtk.Label(xalign=0, hexpand=True)
+            preview = entry.content.strip().splitlines()[0] if entry.content.strip() else ""
+            if len(preview) > 70:
+                preview = preview[:67] + "…"
+            text.set_text(preview or "(whitespace)")
+            text.set_ellipsize(3)  # PANGO_ELLIPSIZE_END
+            box.append(text)
 
         when = Gtk.Label(label=_relative_time(entry.last_used_at))
         when.add_css_class("dim-label")
@@ -150,7 +174,10 @@ class LinPasteWindow(Adw.ApplicationWindow):
         entry = self._selected_entry()
         if entry is None:
             return
-        clipboard.copy(entry.content)
+        if entry.kind == "image":
+            clipboard.copy_image(entry.content)
+        else:
+            clipboard.copy(entry.content)
         db.touch(entry.id)
         # Close first so the compositor hands focus back to the previous window,
         # then ask the shell extension to paste into it (Win+V style).
@@ -174,6 +201,12 @@ class LinPasteWindow(Adw.ApplicationWindow):
             return
         db.set_pinned(entry.id, not entry.pinned)
         self.reload(self.search.get_text() or None)
+
+    def _on_clear_all(self, _btn: Gtk.Button) -> None:
+        # Wipes everything, pinned included — no confirmation by design.
+        db.clear(keep_pinned=False)
+        self.reload(self.search.get_text() or None)
+        self.search.grab_focus()
 
     def _delete_selected(self) -> None:
         entry = self._selected_entry()

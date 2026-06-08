@@ -15,11 +15,18 @@ from . import __version__, clipboard, config, db
 
 
 def cmd_store(args: argparse.Namespace) -> int:
-    """Persist clipboard text piped on stdin. Spawned once per copy."""
+    """Persist clipboard content piped on stdin. Spawned once per copy.
+
+    Text by default; pass ``--image --mime <type>`` to store raw image bytes.
+    """
     # Respect password managers: skip anything flagged sensitive.
     if not args.force and clipboard.is_sensitive():
         return 0
     raw = sys.stdin.buffer.read()
+    if args.image:
+        if db.add_image(raw, mime=args.mime) is not None:
+            db.trim()
+        return 0
     text = raw.decode("utf-8", "replace")
     if db.add_entry(text) is not None:
         db.trim()
@@ -167,8 +174,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"linpaste {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
-    sp = sub.add_parser("store", help="store clipboard text from stdin")
+    sp = sub.add_parser("store", help="store clipboard content from stdin")
     sp.add_argument("--force", action="store_true", help="store even if flagged sensitive")
+    sp.add_argument("--image", action="store_true", help="treat stdin as raw image bytes")
+    sp.add_argument("--mime", default="image/png", help="MIME type of --image data")
     sp.set_defaults(func=cmd_store)
 
     sp = sub.add_parser("show", help="open the clipboard popup")

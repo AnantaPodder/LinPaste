@@ -21,6 +21,10 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const POLL_INTERVAL_MS = 1000;
 
+// Image formats we try to capture, in order of preference. PNG first because
+// it's lossless and what most apps and screenshot tools put on the clipboard.
+const IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/bmp', 'image/gif', 'image/webp'];
+
 // Exported on gnome-shell's own bus connection, so callers address it via the
 // well-known name `org.gnome.Shell` at this path.
 const DBUS_PATH = '/io/github/anantapodder/LinPaste';
@@ -40,6 +44,7 @@ export default class LinPasteCaptureExtension extends Extension {
     enable() {
         this._clipboard = St.Clipboard.get_default();
         this._last = null;
+        this._lastImage = null;
         this._linpaste = this._resolveLinpaste();
         this._virtualKeyboard = null;
         this._pasteTimeoutId = 0;
@@ -73,6 +78,7 @@ export default class LinPasteCaptureExtension extends Extension {
         this._virtualKeyboard = null;
         this._clipboard = null;
         this._last = null;
+        this._lastImage = null;
     }
 
     // D-Bus: synthesize Ctrl+V into whatever window holds focus once the popup
@@ -125,12 +131,36 @@ export default class LinPasteCaptureExtension extends Extension {
 
     _poll() {
         this._clipboard.get_text(St.ClipboardType.CLIPBOARD, (_cb, text) => {
-            if (!text)
+            if (text) {
+                if (text === this._last)
+                    return;
+                this._last = text;
+                this._store(text);
                 return;
-            if (text === this._last)
+            }
+            // No text on the clipboard — it may be holding an image instead.
+            this._pollImage();
+        });
+    }
+
+    _pollImage() {
+        const available = this._clipboard.get_mimetypes(St.ClipboardType.CLIPBOARD) || [];
+        const mime = IMAGE_MIMES.find(m => available.includes(m));
+        if (!mime)
+            return;
+        this._clipboard.get_content(St.ClipboardType.CLIPBOARD, mime, (_cb, bytes) => {
+            if (!bytes)
                 return;
-            this._last = text;
-            this._store(text);
+            const data = bytes.get_data();
+            if (!data || data.length === 0)
+                return;
+            // Cheap signature to avoid re-spawning every poll for the same image.
+            // The Python side dedups authoritatively by content hash.
+            const sig = `${mime}:${data.length}:${data[0]}:${data[data.length - 1]}`;
+            if (sig === this._lastImage)
+                return;
+            this._lastImage = sig;
+            this._storeImage(bytes, mime);
         });
     }
 
@@ -148,6 +178,27 @@ export default class LinPasteCaptureExtension extends Extension {
                     p.communicate_utf8_finish(res);
                 } catch (e) {
                     console.error(`LinPaste: store failed: ${e}`);
+                }
+            });
+        } catch (e) {
+            console.error(`LinPaste: could not spawn ${this._linpaste}: ${e}`);
+        }
+    }
+
+    _storeImage(bytes, mime) {
+        try {
+            const proc = Gio.Subprocess.new(
+                [this._linpaste, 'store', '--image', '--mime', mime],
+                Gio.SubprocessFlags.STDIN_PIPE |
+                Gio.SubprocessFlags.STDOUT_SILENCE |
+                Gio.SubprocessFlags.STDERR_SILENCE
+            );
+            // Binary stdin, so communicate_async with raw GLib.Bytes (not utf8).
+            proc.communicate_async(bytes, null, (p, res) => {
+                try {
+                    p.communicate_finish(res);
+                } catch (e) {
+                    console.error(`LinPaste: image store failed: ${e}`);
                 }
             });
         } catch (e) {

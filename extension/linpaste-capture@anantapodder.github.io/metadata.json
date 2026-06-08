@@ -3,6 +3,6 @@
   "name": "LinPaste Capture",
   "description": "Watches the clipboard and feeds every copy to the LinPaste history backend (linpaste store). Needed because GNOME/Mutter exposes no wlr/ext data-control protocol, so only the shell can read the clipboard in the background.",
   "shell-version": ["46", "47", "48", "49", "50"],
-  "version": 1,
+  "version": 2,
   "url": "https://github.com/AnantaPodder/LinPaste"
 }

@@ -23,6 +23,33 @@ def copy(text: str) -> None:
     )
 
 
+# File extension -> MIME type advertised to wl-copy when offering an image.
+_IMAGE_MIMES = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "bmp": "image/bmp",
+    "gif": "image/gif",
+    "webp": "image/webp",
+}
+
+
+def copy_image(path: str) -> None:
+    """Put the image file at ``path`` onto the Wayland clipboard.
+
+    The MIME type is inferred from the file extension so the receiving app sees
+    the same format the image was captured as.
+    """
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path else "png"
+    mime = _IMAGE_MIMES.get(ext, "image/png")
+    try:
+        with open(path, "rb") as fh:
+            data = fh.read()
+    except OSError:
+        return
+    subprocess.run(["wl-copy", "--type", mime], input=data, check=False)
+
+
 def paste_into_active() -> bool:
     """Ask the LinPaste GNOME Shell extension to synthesize Ctrl+V.
 

@@ -25,7 +25,11 @@ GNOME Shell extension  ──►  linpaste store  ──►  SQLite history.db
   `linpaste store`. This is the same approach GPaste and Clipboard Indicator use.
 - **Storage** — SQLite at `~/.local/share/linpaste/history.db`. Identical
   re-copies are de-duplicated; history is capped (default 500 unpinned entries).
+  Copied **images** are saved as files under `~/.local/share/linpaste/images/`
+  and referenced from the database.
 - **Popup** — a GTK4 / libadwaita window with live search and keyboard nav.
+  Text entries show a preview; image entries show a thumbnail and are copied
+  back as images on `Enter`. The trash button in the header clears all history.
 - **Hotkey** — bound through GNOME (Wayland blocks in-app global hotkeys), so
   GNOME launches `linpaste show` on `Super + V`.
 - **Privacy** — clipboard contents flagged by password managers
@@ -73,7 +77,8 @@ Don't have the `.deb` yet? Build one from this repo:
 | Move selection | `↑` / `↓` |
 | Copy, close & paste into the previous window | `Enter` |
 | Pin / unpin | `Ctrl + P` |
-| Delete entry | `Delete` |
+| Delete selected entry | `Delete` |
+| Clear all history | trash button (top-right) |
 | Close | `Esc` |
 
 CLI:
