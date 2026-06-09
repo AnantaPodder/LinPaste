@@ -55,7 +55,7 @@ class LinPasteWindow(Adw.ApplicationWindow):
         header.set_title_widget(title)
 
         clear_all = Gtk.Button(icon_name="user-trash-symbolic")
-        clear_all.set_tooltip_text("Clear all clipboard history")
+        clear_all.set_tooltip_text("Clear clipboard history (keeps pinned)")
         clear_all.add_css_class("flat")
         clear_all.connect("clicked", self._on_clear_all)
         header.pack_end(clear_all)
@@ -203,8 +203,7 @@ class LinPasteWindow(Adw.ApplicationWindow):
         self.reload(self.search.get_text() or None)
 
     def _on_clear_all(self, _btn: Gtk.Button) -> None:
-        # Wipes everything, pinned included — no confirmation by design.
-        db.clear(keep_pinned=False)
+        db.clear(keep_pinned=True)
         self.reload(self.search.get_text() or None)
         self.search.grab_focus()
 
