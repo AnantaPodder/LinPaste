@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linpaste"
-version = "0.3.0"
+version = "0.3.1"
 description = "Clipboard history manager for Ubuntu (Wayland/GNOME) — a Win+V for Linux"
 readme = "README.md"
 requires-python = ">=3.10"
