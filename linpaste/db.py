@@ -1,8 +1,10 @@
 """SQLite storage layer — the only module that touches the database.
 
 The schema keeps one row per distinct clipboard text. Re-copying something that
-already exists doesn't create a duplicate; it bumps the existing row to the top
-via ``last_used_at`` (see :func:`add_entry`).
+already exists doesn't create a duplicate — the existing row is left in place
+(see :func:`add_entry`). History is ordered by ``created_at`` (insertion order),
+so reusing or re-copying an old entry never reshuffles the list; only genuinely
+new content appears at the top.
 """
 
 import hashlib
@@ -25,8 +27,6 @@ CREATE TABLE IF NOT EXISTS entries (
     created_at   REAL NOT NULL,
     last_used_at REAL NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_entries_order
-    ON entries (pinned DESC, last_used_at DESC);
 """
 
 
@@ -56,6 +56,30 @@ def _ensure_kind_column(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE entries ADD COLUMN kind TEXT NOT NULL DEFAULT 'text'")
 
 
+def _ensure_order_index(conn: sqlite3.Connection) -> None:
+    """Index history by insertion order; drop any older last_used_at index.
+
+    Early versions ordered by ``last_used_at``; the same index name now covers
+    ``created_at``, so an existing database needs its stale index rebuilt.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_entries_order'"
+    ).fetchone()
+    if row is not None and row["sql"] and "last_used_at" in row["sql"]:
+        conn.execute("DROP INDEX idx_entries_order")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_entries_order "
+        "ON entries (pinned DESC, created_at DESC)"
+    )
+
+
+def _prepare(conn: sqlite3.Connection) -> None:
+    """Ensure the schema, columns, and indexes exist before a query runs."""
+    conn.executescript(_SCHEMA)
+    _ensure_kind_column(conn)
+    _ensure_order_index(conn)
+
+
 def _images_dir() -> Path:
     d = config.data_dir() / "images"
     d.mkdir(parents=True, exist_ok=True)
@@ -82,12 +106,11 @@ def _connect() -> sqlite3.Connection:
 def init_db() -> None:
     """Create the schema if it doesn't exist yet."""
     with _connect() as conn:
-        conn.executescript(_SCHEMA)
-        _ensure_kind_column(conn)
+        _prepare(conn)
 
 
 def add_entry(content: str, html: Optional[str] = None) -> Optional[int]:
-    """Insert a new clipboard entry, or bump an existing identical one.
+    """Insert a new clipboard entry, or refresh an existing identical one.
 
     Returns the row id, or ``None`` if the content was empty/whitespace-only.
     """
@@ -97,11 +120,11 @@ def add_entry(content: str, html: Optional[str] = None) -> Optional[int]:
     h = _hash(content)
     now = time.time()
     with _connect() as conn:
-        conn.executescript(_SCHEMA)
-        _ensure_kind_column(conn)
+        _prepare(conn)
         row = conn.execute("SELECT id FROM entries WHERE hash = ?", (h,)).fetchone()
         if row is not None:
-            # Already seen — move it back to the top instead of duplicating.
+            # Already seen — keep its position (ordering is by created_at), just
+            # refresh last_used_at and pick up any newly captured HTML.
             conn.execute(
                 "UPDATE entries SET last_used_at = ?, html = COALESCE(?, html) "
                 "WHERE id = ?",
@@ -134,10 +157,10 @@ def add_image(data: bytes, mime: str = "image/png") -> Optional[int]:
 
     now = time.time()
     with _connect() as conn:
-        conn.executescript(_SCHEMA)
-        _ensure_kind_column(conn)
+        _prepare(conn)
         row = conn.execute("SELECT id FROM entries WHERE hash = ?", (h,)).fetchone()
         if row is not None:
+            # Keep its position; just note it was used again.
             conn.execute("UPDATE entries SET last_used_at = ? WHERE id = ?", (now, row["id"]))
             return row["id"]
         cur = conn.execute(
@@ -149,7 +172,7 @@ def add_image(data: bytes, mime: str = "image/png") -> Optional[int]:
 
 
 def list_entries(limit: int = config.SHOW_LIMIT, query: Optional[str] = None) -> list[Entry]:
-    """Return entries, pinned first then most-recently-used, optionally filtered."""
+    """Return entries, pinned first then newest-copied-first, optionally filtered."""
     sql = "SELECT * FROM entries"
     params: list = []
     if query:
@@ -157,11 +180,12 @@ def list_entries(limit: int = config.SHOW_LIMIT, query: Optional[str] = None) ->
         # path, which would otherwise match queries like "png" or "images".
         sql += " WHERE kind = 'text' AND content LIKE ?"
         params.append(f"%{query}%")
-    sql += " ORDER BY pinned DESC, last_used_at DESC LIMIT ?"
+    # Order by insertion time so reusing an entry never changes its position.
+    # ``id`` breaks ties for a stable order when timestamps collide.
+    sql += " ORDER BY pinned DESC, created_at DESC, id DESC LIMIT ?"
     params.append(limit)
     with _connect() as conn:
-        conn.executescript(_SCHEMA)
-        _ensure_kind_column(conn)
+        _prepare(conn)
         rows = conn.execute(sql, params).fetchall()
     return [
         Entry(
@@ -175,15 +199,6 @@ def list_entries(limit: int = config.SHOW_LIMIT, query: Optional[str] = None) ->
         )
         for r in rows
     ]
-
-
-def touch(entry_id: int) -> None:
-    """Bump an entry to the top (used when the user re-selects it)."""
-    with _connect() as conn:
-        conn.execute(
-            "UPDATE entries SET last_used_at = ? WHERE id = ?",
-            (time.time(), entry_id),
-        )
 
 
 def set_pinned(entry_id: int, pinned: bool) -> None:
@@ -225,7 +240,7 @@ def trim(max_items: int = config.MAX_HISTORY) -> int:
     """Keep at most ``max_items`` unpinned entries; drop the oldest overflow."""
     keep = """
         SELECT id FROM entries WHERE pinned = 0
-        ORDER BY last_used_at DESC LIMIT ?
+        ORDER BY created_at DESC LIMIT ?
     """
     with _connect() as conn:
         _ensure_kind_column(conn)
