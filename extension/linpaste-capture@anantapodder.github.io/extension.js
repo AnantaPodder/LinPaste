@@ -3,9 +3,10 @@
 // Why this exists: GNOME's Mutter compositor exposes no data-control Wayland
 // protocol, so background tools like `wl-paste --watch` cannot observe clipboard
 // changes. The shell itself is the only component with unrestricted clipboard
-// access, so we poll St.Clipboard here and hand each new copy to the LinPaste
-// Python backend by spawning `linpaste store` (text on stdin) — the exact same
-// contract the rest of LinPaste already speaks.
+// access, so we listen for Mutter's `owner-changed` selection signal (one event
+// per copy) and read St.Clipboard on each change, handing every new copy to the
+// LinPaste Python backend by spawning `linpaste store` (text on stdin) — the
+// exact same contract the rest of LinPaste already speaks.
 //
 // The shell is also the only component that can synthesize input on Wayland, so
 // we expose a `Paste` D-Bus method: after the popup copies an entry and closes,
@@ -15,11 +16,16 @@
 import St from 'gi://St';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
 import Clutter from 'gi://Clutter';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-const POLL_INTERVAL_MS = 1000;
+// Capture is primarily event-driven (see the `owner-changed` handler in
+// enable()), but we keep a slow timer as a backstop in case a clipboard change
+// ever slips past the signal. This is no longer the main mechanism, so it can
+// be lazy — the signal catches copies the instant they happen.
+const POLL_INTERVAL_MS = 1500;
 
 // Image formats we try to capture, in order of preference. PNG first because
 // it's lossless and what most apps and screenshot tools put on the clipboard.
@@ -49,6 +55,23 @@ export default class LinPasteCaptureExtension extends Extension {
         this._virtualKeyboard = null;
         this._pasteTimeoutId = 0;
 
+        // Primary capture path: react the moment the clipboard owner changes.
+        // GNOME exposes no data-control protocol to read the clipboard in the
+        // background, but Mutter *does* tell the shell whenever the selection
+        // owner changes — one signal per copy. Driving capture off this event
+        // (instead of only sampling on a timer) is what lets us catch several
+        // copies made in quick succession; a 1s poll would only ever see the
+        // last item still on the clipboard when the tick fired.
+        this._selection = global.display.get_selection();
+        this._ownerChangedId = this._selection.connect(
+            'owner-changed',
+            (_selection, selectionType) => {
+                if (selectionType === Meta.SelectionType.SELECTION_CLIPBOARD)
+                    this._poll();
+            }
+        );
+
+        // Backstop timer in case a change ever slips past the signal.
         this._timeoutId = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,
             POLL_INTERVAL_MS,
@@ -58,11 +81,20 @@ export default class LinPasteCaptureExtension extends Extension {
             }
         );
 
+        // Capture whatever is already on the clipboard at load time — no
+        // owner-changed fires for content that predates us.
+        this._poll();
+
         this._dbus = Gio.DBusExportedObject.wrapJSObject(DBUS_IFACE, this);
         this._dbus.export(Gio.DBus.session, DBUS_PATH);
     }
 
     disable() {
+        if (this._ownerChangedId) {
+            this._selection.disconnect(this._ownerChangedId);
+            this._ownerChangedId = 0;
+        }
+        this._selection = null;
         if (this._timeoutId) {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = null;
