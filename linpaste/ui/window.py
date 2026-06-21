@@ -157,7 +157,7 @@ class LinPasteWindow(Adw.ApplicationWindow):
             text.set_ellipsize(3)  # PANGO_ELLIPSIZE_END
             box.append(text)
 
-        when = Gtk.Label(label=_relative_time(entry.last_used_at))
+        when = Gtk.Label(label=_relative_time(entry.created_at))
         when.add_css_class("dim-label")
         when.add_css_class("caption")
         box.append(when)
@@ -178,7 +178,7 @@ class LinPasteWindow(Adw.ApplicationWindow):
             clipboard.copy_image(entry.content)
         else:
             clipboard.copy(entry.content)
-        db.touch(entry.id)
+        # Reusing an entry deliberately leaves its position unchanged (issue #3).
         # Close first so the compositor hands focus back to the previous window,
         # then ask the shell extension to paste into it (Win+V style).
         self.close()
